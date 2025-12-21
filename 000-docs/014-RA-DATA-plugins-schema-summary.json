@@ -1,0 +1,336 @@
+{
+  "schema_version": "1.0.0",
+  "source": "6767-a-SPEC-MASTER-claude-code-plugins-standard.md",
+  "generated": "2025-12-20",
+  "manifest_schema": {
+    "file_path": ".claude-plugin/plugin.json",
+    "critical_rule": "ONLY plugin.json permitted in .claude-plugin/ directory",
+    "required_fields": {
+      "name": {
+        "type": "string",
+        "max_length": 64,
+        "pattern": "^[a-z0-9-]+$",
+        "constraints": ["kebab-case", "no spaces", "unique within marketplace"],
+        "examples": {
+          "good": "deployment-tools",
+          "bad": ["Deployment_Tools", "deployment tools", "My-Plugin"]
+        }
+      }
+    },
+    "recommended_fields": {
+      "version": {
+        "type": "string",
+        "format": "semver (MAJOR.MINOR.PATCH)",
+        "examples": ["1.0.0", "2.3.1"]
+      },
+      "description": {
+        "type": "string",
+        "description": "Brief explanation of plugin purpose"
+      },
+      "author": {
+        "type": "object",
+        "fields": {
+          "name": "string",
+          "email": "string (optional)",
+          "url": "string (optional)"
+        },
+        "examples": [
+          {"name": "DevTools Team", "email": "team@example.com"},
+          {"name": "Platform Team"}
+        ]
+      },
+      "homepage": {
+        "type": "string",
+        "format": "URL",
+        "description": "Documentation URL"
+      },
+      "repository": {
+        "type": "string",
+        "format": "URL",
+        "description": "Source code URL"
+      },
+      "license": {
+        "type": "string",
+        "format": "SPDX identifier",
+        "examples": ["MIT", "Apache-2.0", "Proprietary"]
+      },
+      "keywords": {
+        "type": "array of strings",
+        "description": "Discovery/categorization tags",
+        "examples": [["testing", "automation"], ["deployment", "ci-cd"]]
+      }
+    },
+    "optional_fields": {
+      "commands": {
+        "type": "string | array of strings",
+        "behavior": "Supplements commands/ directory (does not replace)",
+        "examples": ["./custom/commands/", ["./commands/core/", "./commands/advanced/"]]
+      },
+      "agents": {
+        "type": "string | array of strings",
+        "behavior": "Supplements agents/ directory",
+        "examples": ["./agents/", ["./agents/deployment-strategist.md", "./agents/rollback-specialist.md"]]
+      },
+      "hooks": {
+        "type": "string | object",
+        "behavior": "Path to hooks.json OR inline hooks configuration",
+        "examples": ["./config/hooks.json", {"PostToolUse": [...]}]
+      },
+      "mcpServers": {
+        "type": "string | object",
+        "behavior": "Path to .mcp.json OR inline MCP server config",
+        "examples": [
+          "./.mcp.json",
+          {"k8s-manager": {"command": "${CLAUDE_PLUGIN_ROOT}/servers/k8s-manager"}}
+        ]
+      }
+    },
+    "environment_variables": {
+      "CLAUDE_PLUGIN_ROOT": {
+        "description": "Plugin root directory path (use for portable paths)",
+        "required": true,
+        "usage": "${CLAUDE_PLUGIN_ROOT}/bin/server"
+      }
+    }
+  },
+  "directory_structure": {
+    "required": [
+      ".claude-plugin/ (MUST contain ONLY plugin.json)"
+    ],
+    "optional": [
+      "commands/ (slash commands as .md files)",
+      "agents/ (subagent definitions as .md files with frontmatter)",
+      "skills/ (each skill in skill-name/SKILL.md subdirectory)",
+      "hooks/ (hooks.json configuration)",
+      "scripts/ (helper scripts)",
+      ".mcp.json (MCP server config)"
+    ],
+    "critical_constraints": [
+      "ALL component directories MUST be at plugin root (NOT inside .claude-plugin/)",
+      "Skills MUST be in skill-name/SKILL.md subdirectory structure",
+      "Only create directories you use (NO empty placeholders)",
+      ".claude-plugin/ contains ONLY plugin.json (NO other files)"
+    ],
+    "naming_conventions": {
+      "plugin_folder": "kebab-case (deployment-tools/)",
+      "plugin_name_manifest": "kebab-case (\"deployment-tools\")",
+      "command_files": "kebab-case.md (run-tests.md)",
+      "agent_files": "kebab-case.md (security-reviewer.md)",
+      "skill_directories": "kebab-case/ (code-analysis/)",
+      "scripts": "kebab-case.* (validate-config.sh)"
+    }
+  },
+  "components_specification": {
+    "commands": {
+      "location": "commands/",
+      "format": "Markdown files with optional frontmatter",
+      "frontmatter_fields": {
+        "description": "string (optional)",
+        "allowed-tools": "CSV string (optional)"
+      },
+      "invocation": "User types /command-name (derived from filename without .md)"
+    },
+    "agents": {
+      "location": "agents/",
+      "format": "Markdown files with YAML frontmatter",
+      "required_frontmatter": {
+        "name": "Agent identifier",
+        "description": "When Claude should delegate to this agent"
+      },
+      "optional_frontmatter": {
+        "tools": "Comma-separated tool list (inherits all if omitted)",
+        "model": "sonnet | opus | haiku | inherit",
+        "permissionMode": "Permission mode",
+        "skills": "Skills to auto-load"
+      }
+    },
+    "skills": {
+      "location": "skills/skill-name/SKILL.md",
+      "format": "See 003-RA-DATA-skills-schema-summary.json for full specification",
+      "note": "Skills follow 6767-b MASTER specification"
+    },
+    "hooks": {
+      "location": "hooks/hooks.json or inline in plugin.json",
+      "format": "JSON configuration",
+      "events": [
+        "PreToolUse (matcher required)",
+        "PostToolUse (matcher required)",
+        "PermissionRequest (matcher required)",
+        "UserPromptSubmit",
+        "Stop",
+        "SubagentStop",
+        "SessionStart (matcher required)",
+        "SessionEnd",
+        "PreCompact (matcher required)",
+        "Notification (matcher optional)"
+      ],
+      "hook_types": ["command (execute bash)", "prompt (LLM-based evaluation)"],
+      "output_schema": {
+        "continue": "boolean",
+        "stopReason": "string (optional)",
+        "suppressOutput": "boolean",
+        "systemMessage": "string",
+        "hookSpecificOutput": "object (event-specific fields)"
+      }
+    }
+  },
+  "marketplace_schema": {
+    "file": "marketplace.json",
+    "required_fields": {
+      "name": {
+        "type": "string",
+        "format": "kebab-case",
+        "description": "Marketplace identifier"
+      },
+      "owner": {
+        "type": "object",
+        "fields": {
+          "name": "string",
+          "email": "string"
+        }
+      },
+      "plugins": {
+        "type": "array",
+        "description": "List of available plugins"
+      }
+    },
+    "optional_metadata": {
+      "metadata.description": "string",
+      "metadata.version": "string",
+      "metadata.pluginRoot": "string (base path for relative sources)"
+    },
+    "plugin_entry": {
+      "required": ["name", "source"],
+      "optional": ["description", "version", "author", "license", "keywords", "category", "tags", "strict"],
+      "strict_mode": {
+        "true": "Plugin MUST have plugin.json (marketplace fields supplement)",
+        "false": "Marketplace entry serves as complete manifest if no plugin.json"
+      }
+    },
+    "source_types": [
+      {
+        "type": "relative_path",
+        "format": "string",
+        "example": "./plugins/local-plugin"
+      },
+      {
+        "type": "github",
+        "format": "object",
+        "example": {"source": "github", "repo": "owner/plugin-repo"}
+      },
+      {
+        "type": "git_url",
+        "format": "object",
+        "example": {"source": "git", "url": "https://gitlab.com/team/plugin.git"}
+      },
+      {
+        "type": "local_directory",
+        "format": "object",
+        "example": {"source": "directory", "path": "/path/to/local/plugin"}
+      }
+    ]
+  },
+  "security_constraints": {
+    "must_not": [
+      "Hardcode secrets or API keys",
+      "Commit .env files",
+      "Commit credential files",
+      "Use unrestricted Bash tool (must scope: Bash(command:*))",
+      "Allow network calls without timeout",
+      "Perform file operations outside project (use ${CLAUDE_PLUGIN_ROOT})",
+      "Log sensitive data",
+      "Pass unvalidated user input to shell"
+    ],
+    "must": [
+      "Use ${CLAUDE_PLUGIN_ROOT} for all plugin paths",
+      "Scope bash commands: Bash(git:*), Bash(npm run:*)",
+      "Use environment variables for secrets",
+      "Sanitize all inputs",
+      "Set timeouts on hooks",
+      "Validate paths to prevent traversal (no ..)"
+    ],
+    "security_audit_checklist": [
+      "No hardcoded secrets or API keys",
+      "All bash commands scoped appropriately",
+      "Scripts validate and sanitize inputs",
+      "Network calls have timeouts",
+      "File paths use ${CLAUDE_PLUGIN_ROOT}",
+      "No path traversal vulnerabilities",
+      "Sensitive files excluded (.env, credentials)",
+      "Dependencies from trusted sources",
+      "MCP servers don't expose sensitive data"
+    ]
+  },
+  "versioning": {
+    "format": "semver (MAJOR.MINOR.PATCH)",
+    "rules": {
+      "PATCH": "Bug fixes, documentation",
+      "MINOR": "New features, backward-compatible",
+      "MAJOR": "Breaking changes"
+    },
+    "deprecation_process": [
+      "Mark deprecated in description: [DEPRECATED] Old command...",
+      "Keep working for one minor version",
+      "Remove in next major version"
+    ]
+  },
+  "production_readiness_checklist": {
+    "manifest": [
+      "name is kebab-case, unique, descriptive",
+      "version follows semver",
+      "description clearly explains purpose",
+      "author information complete",
+      "license specified (SPDX identifier)",
+      "keywords aid discovery",
+      "repository points to source"
+    ],
+    "components": [
+      "All commands documented",
+      "Agents have clear descriptions",
+      "Skills follow 6767-b standard",
+      "Hooks have appropriate matchers",
+      "MCP servers use ${CLAUDE_PLUGIN_ROOT}"
+    ],
+    "security": [
+      "No hardcoded secrets",
+      "Bash commands appropriately scoped",
+      "Inputs validated/sanitized",
+      "Timeouts configured",
+      "Paths relative with ${CLAUDE_PLUGIN_ROOT}"
+    ],
+    "testing": [
+      "Plugin loads without errors (claude --debug)",
+      "Commands execute correctly",
+      "Agents respond appropriately",
+      "Hooks fire on expected events",
+      "MCP servers initialize"
+    ],
+    "documentation": [
+      "README explains installation",
+      "README documents usage",
+      "README lists requirements",
+      "CHANGELOG tracks versions",
+      "Environment variables documented"
+    ],
+    "marketplace": [
+      "Marketplace entry complete",
+      "Source URL accessible",
+      "Version matches plugin.json",
+      "Keywords appropriate"
+    ]
+  },
+  "validation_rules": {
+    "manifest": {
+      "checks": ["file_exists_at_correct_path", "only_plugin_json_in_directory", "name_field_present", "name_kebab_case", "name_max_64_chars", "version_semver_if_present"]
+    },
+    "structure": {
+      "checks": ["component_directories_at_root", "skills_have_skill_md", "no_empty_directories", "no_extra_files_in_claude_plugin"]
+    },
+    "security": {
+      "checks": ["no_hardcoded_secrets", "no_api_keys", "paths_use_env_variable", "bash_commands_scoped", "no_env_files_committed"]
+    },
+    "naming": {
+      "checks": ["all_kebab_case", "no_uppercase", "no_reserved_words", "no_spaces"]
+    }
+  }
+}

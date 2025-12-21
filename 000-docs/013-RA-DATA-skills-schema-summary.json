@@ -1,0 +1,171 @@
+{
+  "schema_version": "1.0.0",
+  "source": "6767-b-SPEC-MASTER-claude-skills-standard.md",
+  "generated": "2025-12-20",
+  "anthropic_spec": {
+    "required_fields": {
+      "name": {
+        "type": "string",
+        "max_length": 64,
+        "pattern": "^[a-z0-9-]+$",
+        "constraints": [
+          "Lowercase letters, numbers, hyphens only",
+          "No XML tags",
+          "Cannot contain 'anthropic' or 'claude'"
+        ],
+        "examples": {
+          "good": ["processing-pdfs", "analyzing-spreadsheets", "git-workflow-manager"],
+          "bad": ["PDF_Processing", "claude-helper", "My-Skill"]
+        }
+      },
+      "description": {
+        "type": "string",
+        "max_length": 1024,
+        "voice": "third person",
+        "constraints": [
+          "Non-empty",
+          "No XML tags",
+          "Should include: capabilities, scenarios, trigger phrases"
+        ],
+        "formula": "[Primary capabilities]. [Secondary features]. Use when [scenarios]. Trigger with \"[phrases]\".",
+        "examples": {
+          "good": "Extract text and tables from PDF files, fill forms, merge documents. Use when working with PDF files or when the user mentions PDFs, forms, or document extraction.",
+          "bad": "Helps with documents"
+        }
+      }
+    },
+    "optional_fields": {
+      "allowed-tools": {
+        "type": "CSV string",
+        "format": "Tool1,Tool2,Bash(command:*)",
+        "default": "No pre-approved tools (user prompted for each)",
+        "examples": [
+          "Read,Write,Glob,Grep,Edit",
+          "Bash(git:*),Read,Grep",
+          "Bash(npm:*),Bash(npx:*),Read,Write"
+        ],
+        "note": "Only supported in Claude Code, not claude.ai web"
+      },
+      "model": {
+        "type": "string",
+        "values": ["inherit", "claude-opus-4-20250514", "claude-sonnet-4-20250514", "claude-haiku-*"],
+        "default": "inherit"
+      },
+      "version": {
+        "type": "string",
+        "format": "semver (MAJOR.MINOR.PATCH)",
+        "examples": ["1.0.0", "2.1.3"]
+      },
+      "license": {
+        "type": "string",
+        "format": "SPDX identifier",
+        "examples": ["MIT", "Apache-2.0", "Proprietary - See LICENSE.txt"]
+      },
+      "mode": {
+        "type": "boolean",
+        "default": false,
+        "description": "Categorize as mode command (separate UI section)"
+      },
+      "disable-model-invocation": {
+        "type": "boolean",
+        "default": false,
+        "description": "Remove from auto-discovery (manual /skill-name only)"
+      }
+    }
+  },
+  "enterprise_spec": {
+    "note": "Intent Solutions marketplace requirements (NOT Anthropic official spec)",
+    "required_fields": {
+      "author": {
+        "type": "string",
+        "format": "Name <email> or Name",
+        "examples": ["Jeremy Longshore <jeremy@intentsolutions.io>", "Jane Smith"]
+      },
+      "version": {
+        "type": "string",
+        "format": "semver",
+        "required": true,
+        "note": "Promoted from Anthropic optional to Enterprise required"
+      },
+      "license": {
+        "type": "string",
+        "format": "SPDX identifier",
+        "required": true,
+        "note": "Promoted from Anthropic optional to Enterprise required"
+      },
+      "allowed-tools": {
+        "type": "CSV string",
+        "required": true,
+        "note": "Promoted from Anthropic optional to Enterprise required"
+      }
+    },
+    "recommended_fields": {
+      "tags": {
+        "type": "array of strings",
+        "examples": [["devops", "kubernetes", "deployment"], ["security", "audit", "compliance"]]
+      }
+    }
+  },
+  "body_constraints": {
+    "max_lines": 500,
+    "max_tokens": 5000,
+    "target_tokens": 2500,
+    "language": "Imperative voice in instructions, third person in descriptions",
+    "required_sections": [
+      "Title (H1)",
+      "Purpose statement (1-2 sentences)",
+      "Overview (3-5 sentences)",
+      "Prerequisites",
+      "Instructions (numbered steps with action verbs)",
+      "Output",
+      "Error Handling (minimum 4 errors with cause + solution)",
+      "Examples (2-3 with input/output pairs)",
+      "Resources"
+    ],
+    "paths": {
+      "variable": "{baseDir}",
+      "constraint": "No hardcoded absolute paths",
+      "slash_style": "Forward slashes only (no backslashes)"
+    },
+    "references": {
+      "depth": "One-level-deep only",
+      "bad": "SKILL.md → advanced.md → details.md → actual_info.md",
+      "good": "SKILL.md → advanced.md, SKILL.md → reference.md"
+    }
+  },
+  "directory_structure": {
+    "required": [
+      "SKILL.md at skill root"
+    ],
+    "optional": [
+      "scripts/ (executable code)",
+      "references/ (docs loaded into context)",
+      "assets/ (templates, path reference only)",
+      "LICENSE.txt"
+    ],
+    "naming": {
+      "folder_name_should_match": "name field (for clarity)",
+      "recommended_style": "gerund form (processing-pdfs, analyzing-data)",
+      "acceptable_styles": ["noun phrase (pdf-processing)", "action-oriented (process-pdfs)"]
+    }
+  },
+  "validation_rules": {
+    "frontmatter": {
+      "name": {
+        "checks": ["lowercase", "hyphens_only", "max_64_chars", "no_reserved_words", "no_xml_tags"]
+      },
+      "description": {
+        "checks": ["max_1024_chars", "third_person_voice", "non_empty", "no_xml_tags", "includes_triggers"]
+      },
+      "allowed-tools": {
+        "checks": ["csv_string_format", "valid_tool_names", "proper_scoping"]
+      },
+      "version": {
+        "checks": ["semver_format"]
+      }
+    },
+    "body": {
+      "checks": ["max_500_lines", "uses_baseDir_variable", "forward_slashes", "has_all_required_sections", "min_2_examples", "min_4_errors"]
+    }
+  }
+}
