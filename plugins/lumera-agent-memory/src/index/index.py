@@ -40,6 +40,7 @@ class MemoryIndex:
         self,
         pointer: str,
         content_hash: str,
+        artifact_type: str = "artifact_only",
         tags: List[str] = None,
         source_session_id: str = None,
         source_tool: str = None,
@@ -52,6 +53,7 @@ class MemoryIndex:
         Args:
             pointer: Cascade pointer (cascade://...)
             content_hash: SHA-256 hash of encrypted blob
+            artifact_type: "artifact_only" or "raw_plus_artifact"
             tags: List of tags for categorization
             source_session_id: Original session ID (from CASS)
             source_tool: Tool that generated this memory
@@ -71,11 +73,11 @@ class MemoryIndex:
 
         cursor = self.conn.execute(
             """
-            INSERT INTO memories (pointer, content_hash, tags_json, created_at,
+            INSERT INTO memories (pointer, content_hash, artifact_type, tags_json, created_at,
                                   source_session_id, source_tool, title, snippet, metadata_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (pointer, content_hash, tags_json, created_at, source_session_id, source_tool, title, snippet, metadata_json),
+            (pointer, content_hash, artifact_type, tags_json, created_at, source_session_id, source_tool, title, snippet, metadata_json),
         )
         self.conn.commit()
         return cursor.lastrowid

@@ -158,11 +158,21 @@ async def call_tool(name: str, arguments: Any) -> List[TextContent]:
 
 
 async def _store_session(args: Dict[str, Any]) -> List[TextContent]:
-    """Store session to Cascade with redaction + encryption."""
+    """Store session to Cascade with privacy-first artifact-only design.
+
+    CEO Feedback: Default to artifact-only (no raw sessions).
+    Opt-in required for raw export.
+    """
     try:
         session_id = args["session_id"]
         tags = args.get("tags", [])
+        metadata = args.get("metadata", {})
         mode = args.get("mode", "mock")
+
+        # Extract control flags from metadata
+        dry_run = metadata.get("dry_run", False)
+        allow_raw_export = metadata.get("allow_raw_export", False)
+        raw_export_ack = metadata.get("raw_export_ack")
 
         # Check live mode
         if mode == "live":
@@ -189,42 +199,101 @@ async def _store_session(args: Dict[str, Any]) -> List[TextContent]:
                 )
             ]
 
-        # Step 2: Redact (with report)
+        # Step 2: Redact (always - with report)
         try:
             redacted, redaction_report = redact_session(session_data)
         except RedactionError as e:
+            # CRITICAL secrets detected - fail-closed
             return [
                 TextContent(
                     type="text",
                     text=json.dumps({
                         "ok": False,
-                        "error": f"Redaction failed (critical secrets detected): {str(e)}",
+                        "error": f"CRITICAL secrets detected - storage aborted: {str(e)}",
+                        "reason": "Privacy-first design: Cannot store sessions with private keys, auth headers, or bearer tokens.",
                     }),
                 )
             ]
 
-        # Step 3: Generate Memory Card
+        # Step 3: Generate Memory Card (always - deterministic, offline)
         memory_card = generate_memory_card(session_data)
 
-        # Step 4: Serialize and encrypt
-        plaintext = json.dumps(redacted).encode("utf-8")
+        # Step 4: Determine artifact type based on opt-in gate
+        artifact_type = "artifact_only"  # DEFAULT: privacy-first
+
+        if allow_raw_export and raw_export_ack == "I understand the risk":
+            artifact_type = "raw_plus_artifact"
+
+        # Step 5: Build payload based on artifact type
+        if artifact_type == "artifact_only":
+            # DEFAULT: Store only sanitized artifact (CEO feedback)
+            payload = {
+                "artifact_type": "artifact_only",
+                "session_id": session_id,
+                "timestamp": session_data.get("timestamp"),
+                "memory_card": memory_card,
+                "redaction_report": redaction_report,
+                "tags": tags,
+            }
+        else:
+            # OPT-IN: Store artifact + redacted raw session
+            payload = {
+                "artifact_type": "raw_plus_artifact",
+                "session_id": session_id,
+                "timestamp": session_data.get("timestamp"),
+                "memory_card": memory_card,
+                "redaction_report": redaction_report,
+                "raw_session": redacted,  # Redacted version
+                "tags": tags,
+            }
+
+        # Step 6: Serialize and encrypt
+        plaintext = json.dumps(payload).encode("utf-8")
         plaintext_sha256 = hashlib.sha256(plaintext).hexdigest()
         encrypted_blob = encrypt_blob(plaintext)
         ciphertext_sha256 = hashlib.sha256(encrypted_blob).hexdigest()
 
-        # Step 5: Store in Cascade
+        # Step 7: DRY-RUN check (preview mode)
+        if dry_run:
+            # Return preview without uploading
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps({
+                        "ok": True,
+                        "dry_run": True,
+                        "preview": {
+                            "artifact_type": artifact_type,
+                            "fields": list(payload.keys()),
+                            "bytes": len(encrypted_blob),
+                            "plaintext_sha256": plaintext_sha256,
+                            "would_upload": False,
+                        },
+                        "memory_card": memory_card,
+                        "redaction": {
+                            "rules_fired": redaction_report,
+                        },
+                    }),
+                )
+            ]
+
+        # Step 8: Store in Cascade (not dry-run)
         cascade_uri = cascade.put(encrypted_blob)
 
-        # Step 6: Add to local index (with memory card metadata)
+        # Step 9: Add to local index
         index.add_memory(
             pointer=cascade_uri,
             content_hash=ciphertext_sha256,
+            artifact_type=artifact_type,
             tags=tags,
             source_session_id=session_id,
             source_tool=session_data.get("tool_name", "unknown"),
             title=memory_card["title"],
             snippet=" | ".join(memory_card["summary_bullets"][:2]),  # First 2 bullets
-            metadata={"memory_card": memory_card},
+            metadata={
+                "memory_card": memory_card,
+                "redaction_report": redaction_report,
+            },
         )
 
         return [
@@ -234,6 +303,7 @@ async def _store_session(args: Dict[str, Any]) -> List[TextContent]:
                     "ok": True,
                     "session_id": session_id,
                     "cascade_uri": cascade_uri,
+                    "artifact_type": artifact_type,
                     "indexed": True,
                     "memory_card": memory_card,
                     "redaction": {
@@ -287,11 +357,12 @@ async def _query_memories(args: Dict[str, Any]) -> List[TextContent]:
             limit=limit
         )
 
-        # Return hits with cascade_uri + metadata
+        # Return hits with cascade_uri + metadata + artifact_type
         hits = [
             {
                 "cass_session_id": m.get("source_session_id"),
                 "cascade_uri": m["pointer"],
+                "artifact_type": m.get("artifact_type", "artifact_only"),
                 "title": m.get("title", f"Session {m.get('source_session_id', 'unknown')}"),
                 "snippet": m.get("snippet", m.get("source_tool", "")),
                 "tags": m.get("tags", []),
@@ -370,7 +441,7 @@ async def _retrieve_session(args: Dict[str, Any]) -> List[TextContent]:
             plaintext = decrypt_blob(encrypted_blob)
             plaintext_sha256 = hashlib.sha256(plaintext).hexdigest()
             ciphertext_sha256 = hashlib.sha256(encrypted_blob).hexdigest()
-            session_data = json.loads(plaintext.decode("utf-8"))
+            artifact_payload = json.loads(plaintext.decode("utf-8"))
         except EncryptionError as e:
             return [
                 TextContent(
@@ -382,16 +453,14 @@ async def _retrieve_session(args: Dict[str, Any]) -> List[TextContent]:
                 )
             ]
 
-        # Step 3: Get memory card from index (if available)
-        memory_metadata = index.get_memory_by_pointer(cascade_uri)
-        memory_card = None
-        if memory_metadata and "memory_card" in memory_metadata.get("metadata", {}):
-            memory_card = memory_metadata["metadata"]["memory_card"]
+        # Step 3: Extract artifact type and build result
+        artifact_type = artifact_payload.get("artifact_type", "artifact_only")
 
         result = {
             "ok": True,
             "cascade_uri": cascade_uri,
-            "session": session_data,
+            "artifact_type": artifact_type,
+            "artifact": artifact_payload,  # Full artifact (includes memory_card, redaction_report, etc.)
             "crypto": {
                 "verified": True,
                 "plaintext_sha256": plaintext_sha256,
@@ -399,9 +468,6 @@ async def _retrieve_session(args: Dict[str, Any]) -> List[TextContent]:
                 "key_id": "env:LUMERA_MEMORY_KEY",
             },
         }
-
-        if memory_card:
-            result["memory_card"] = memory_card
 
         return [
             TextContent(

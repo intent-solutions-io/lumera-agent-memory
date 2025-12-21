@@ -1,16 +1,19 @@
 -- Lumera Agent Memory: Local SQLite Index Schema with FTS5
--- Version: 0.2.0
+-- Version: 0.3.0
 --
 -- CRITICAL: This index stores POINTERS ONLY (never blob content).
 -- Query this index to find what to retrieve, then fetch from Cascade.
+--
+-- CEO Feedback: Default to artifact-only storage (no raw sessions).
 
 CREATE TABLE IF NOT EXISTS memories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pointer TEXT UNIQUE NOT NULL,
     content_hash TEXT NOT NULL,
+    artifact_type TEXT NOT NULL DEFAULT 'artifact_only',  -- "artifact_only" | "raw_plus_artifact"
     tags_json TEXT,
     created_at TEXT NOT NULL,
-    schema_version TEXT DEFAULT '0.2.0',
+    schema_version TEXT DEFAULT '0.3.0',
     source_session_id TEXT,
     source_tool TEXT,
     title TEXT,
@@ -61,4 +64,4 @@ CREATE TABLE IF NOT EXISTS schema_metadata (
 
 -- Insert schema version
 INSERT OR IGNORE INTO schema_metadata (version, applied_at)
-VALUES ('0.2.0', datetime('now'));
+VALUES ('0.3.0', datetime('now'));

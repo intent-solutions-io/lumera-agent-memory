@@ -4,10 +4,33 @@
 >
 > **🔒 SECURITY NOTICE**: This is a developmental project. While security features are implemented (AES-256-GCM encryption, fail-closed redaction), this software has NOT been audited for production use. Use at your own risk.
 
-A hybrid local-search + Cascade-storage memory system for coding agents. Integrates with Jeff Emanuel's CASS memory system to provide durable, encrypted, searchable session storage.
+A hybrid local-search + Cascade-storage memory system for coding agents. **Privacy-first design**: stores ONLY sanitized artifacts by default (no raw sessions).
+
+## CEO Feedback-Driven Design
+
+> **"No one should be able to see what happens in my sessions. Too much liability."**
+>
+> **"Even with encryption, it's easy to mess up."**
+
+**Our Response**: We do NOT build "export raw sessions" as the default product. We build a **safe-by-default system** that stores ONLY sanitized, derived artifacts unless you explicitly opt into storing raw content.
+
+**Default Behavior**:
+- ✅ Stores Memory Card (title, summary, decisions, todos, entities, keywords)
+- ✅ Stores redaction report (what was removed)
+- ✅ Stores minimal metadata (timestamps, tags)
+- ❌ Does NOT store raw session transcript
+
+**Opt-In for Raw Export** (requires BOTH):
+1. `metadata.allow_raw_export = true`
+2. `metadata.raw_export_ack = "I understand the risk"`
+
+Without BOTH conditions, raw transcript is NOT uploaded (even encrypted).
 
 ## Status
 
+- ✅ **Privacy-First**: Artifact-only storage by default (CEO feedback incorporated)
+- ✅ **Opt-In Gate**: Raw export requires explicit acknowledgment
+- ✅ **Dry-Run Preview**: See exactly what would be stored before committing
 - ✅ **Security Layer**: Client-side AES-256-GCM encryption, typed redaction with fail-closed on critical secrets
 - ✅ **Storage Layer**: Mock Cascade (filesystem-backed), content-addressed pointers
 - ✅ **Search Layer**: SQLite FTS5 with BM25 ranking (local index, never queries Cascade)
@@ -73,11 +96,94 @@ Example: `john.doe@example.com` → `<REDACTED:EMAIL>`
 
 **Key Management**: Keys are NOT managed by this system. Users must securely store and rotate their own keys.
 
+## Example Usage
+
+### 1. Store Artifact-Only (DEFAULT - Privacy-First)
+
+```json
+{
+  "tool": "store_session_to_cascade",
+  "arguments": {
+    "session_id": "demo-bug-report",
+    "tags": ["production", "bug-fix"],
+    "mode": "mock"
+  }
+}
+```
+
+**Result**: Stores ONLY Memory Card + redaction report (NO raw transcript)
+
+### 2. Dry-Run Preview (See What Would Be Stored)
+
+```json
+{
+  "tool": "store_session_to_cascade",
+  "arguments": {
+    "session_id": "demo-bug-report",
+    "tags": ["production"],
+    "metadata": {
+      "dry_run": true
+    },
+    "mode": "mock"
+  }
+}
+```
+
+**Result**: Preview object showing fields, byte size, what would be uploaded. NO upload occurs.
+
+### 3. Opt-In Raw Export (Explicit Acknowledgment Required)
+
+```json
+{
+  "tool": "store_session_to_cascade",
+  "arguments": {
+    "session_id": "demo-bug-report",
+    "tags": ["production"],
+    "metadata": {
+      "allow_raw_export": true,
+      "raw_export_ack": "I understand the risk"
+    },
+    "mode": "mock"
+  }
+}
+```
+
+**Result**: Stores Memory Card + redacted raw session transcript
+
+### 4. Query Memories (Local Search Only)
+
+```json
+{
+  "tool": "query_memories",
+  "arguments": {
+    "query": "JWT auth bug",
+    "tags": ["production"],
+    "limit": 5
+  }
+}
+```
+
+**Result**: Hits with `cascade_uri`, `artifact_type`, title, snippet, BM25 score
+
+### 5. Retrieve Artifact
+
+```json
+{
+  "tool": "retrieve_session_from_cascade",
+  "arguments": {
+    "cascade_uri": "cascade://abc123...",
+    "mode": "mock"
+  }
+}
+```
+
+**Result**: Decrypted artifact (type: `artifact_only` or `raw_plus_artifact`)
+
 ## MCP Tools
 
-1. `store_session_to_cascade` - Store session with redaction + encryption
+1. `store_session_to_cascade` - Store session with privacy-first artifact design
 2. `query_memories` - Search local index (FTS5 + BM25 ranking)
-3. `retrieve_session_from_cascade` - Fetch and decrypt by URI
+3. `retrieve_session_from_cascade` - Fetch and decrypt artifact by URI
 4. `estimate_storage_cost` - Heuristic cost calculation
 
 ## Development
