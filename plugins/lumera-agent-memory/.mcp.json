@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "lumera-agent-memory": {
+      "command": "python",
+      "args": [
+        "-m",
+        "src.mcp_server"
+      ],
+      "cwd": "${pluginDir}",
+      "env": {
+        "PYTHONPATH": "${pluginDir}",
+        "LUMERA_MEMORY_KEY": "${env:LUMERA_MEMORY_KEY}"
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "lumera-agent-memory",
+  "version": "0.1.0",
+  "displayName": "Lumera Agent Memory",
+  "description": "Hybrid local-search + Cascade-storage memory system for coding agents. Integrates with CASS memory system for procedural learning across sessions.",
+  "author": {
+    "name": "Jeremy Longshore",
+    "email": "jeremy@intentsolutions.io"
+  },
+  "homepage": "https://github.com/intent-solutions-io/lumera-agent-memory",
+  "repository": "https://github.com/intent-solutions-io/lumera-agent-memory",
+  "license": "MIT",
+  "keywords": [
+    "memory",
+    "cascade",
+    "cass",
+    "agent",
+    "procedural-memory",
+    "encryption"
+  ],
+  "mcpServers": "../.mcp.json"
+}
