@@ -103,7 +103,6 @@ flake8 src/ tests/
 
 - **[PROJECT.md](PROJECT.md)** - Detailed project tree and tool documentation
 - **[IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)** - Week 1 implementation changes
-- **[000-docs/](../../000-docs/)** - Full design documentation (9 files)
 
 ## Roadmap
 

@@ -50,3 +50,6 @@ htmlcov/
 # Environment
 .env
 .env.local
+
+# Documentation
+000-docs/
