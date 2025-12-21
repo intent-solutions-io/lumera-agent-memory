@@ -203,7 +203,7 @@ async def _store_session(args: Dict[str, Any]) -> List[TextContent]:
                 )
             ]
 
-        # Step 3: Generate Memory Card (WOW factor!)
+        # Step 3: Generate Memory Card
         memory_card = generate_memory_card(session_data)
 
         # Step 4: Serialize and encrypt

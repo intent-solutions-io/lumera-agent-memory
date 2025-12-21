@@ -1,6 +1,6 @@
 """Memory Card generation using deterministic NLP heuristics.
 
-WOW Factor: Extract title, summary, decisions, todos, entities, keywords, quotes
+Extract title, summary, decisions, todos, entities, keywords, quotes
 from session data without any network calls or ML models.
 """
 

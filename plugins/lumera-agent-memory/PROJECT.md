@@ -53,7 +53,7 @@ plugins/lumera-agent-memory/
 │   │   └── mock_fs.py              [MOCK] (filesystem-backed storage)
 │   ├── enrich/
 │   │   ├── __init__.py
-│   │   └── memory_card.py          [WOW] (NLP enrichment, deterministic)
+│   │   └── memory_card.py          [ENRICH] (NLP enrichment, deterministic)
 │   ├── index/
 │   │   ├── __init__.py
 │   │   ├── index.py                [IDX] (SQLite + FTS5 search)
@@ -82,7 +82,7 @@ plugins/lumera-agent-memory/
 - `src/cascade/interface.py` — [MOCK] Abstract connector interface (mock vs live)
 - `src/index/index.py` — [IDX] SQLite index with FTS5 full-text search + BM25 ranking
 - `src/index/schema.sql` — [IDX] Database schema with FTS5 virtual table + triggers
-- `src/enrich/memory_card.py` — [WOW] Deterministic NLP heuristics for memory card generation
+- `src/enrich/memory_card.py` — [ENRICH] Deterministic NLP heuristics for memory card generation
 - `src/adapters/cass_memory_system.py` — [DATA] CASS integration adapter
 - `src/adapters/fixtures.py` — [DATA] Test session fixtures with messy real-world data
 - `tests/smoke_test_90s.py` — [TEST] End-to-end smoke test: store → query → retrieve

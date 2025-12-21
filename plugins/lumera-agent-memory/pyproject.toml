@@ -35,6 +35,10 @@ target-version = ["py310"]
 profile = "black"
 line_length = 100
 
+[tool.setuptools]
+package-dir = {"" = "."}
+packages = ["src", "src.security", "src.cascade", "src.index", "src.adapters", "src.enrich"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
