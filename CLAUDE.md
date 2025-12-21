@@ -1,20 +1,38 @@
-# CLAUDE.md - Operator Instructions for Lumera Agent Memory
+# CLAUDE.md
 
-**Project**: Lumera Agent Memory (Week 1 Scaffold)
-**Version**: 0.1.0
-**Last Updated**: 2025-12-20
-
----
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-This is a **hybrid memory system** for coding agents that integrates Jeff Emanuel's CASS memory system with Lumera Cascade storage. It provides:
+**Lumera Agent Memory** is a hybrid memory system for coding agents that integrates Jeff Emanuel's CASS memory system with Lumera Cascade storage. It provides:
 
 - Fast local search via SQLite index
 - Durable encrypted storage in Cascade
 - Fail-closed security (aborts on ANY secret detection)
 
 **CRITICAL**: This is Week 1 scaffold code. Cascade is MOCKED (filesystem-backed). Real integration comes in Week 2+.
+
+**Version**: 0.1.0
+**Status**: Week 1 scaffold complete
+
+---
+
+## Documentation
+
+All planning and design docs are in `000-docs/` using Doc-Filing v4.2 naming convention:
+
+- `NNN-CC-ABBR-description.md`
+  - `NNN`: Sequential number (001-009)
+  - `CC`: Category code (DR=Design Record, PP=Product Planning, AT=Architecture, TQ=Test/Quality, PM=Project Management, AA=After-Action)
+  - `ABBR`: 4-letter abbreviation (STND, PROD, ARCH, SECU, QAPL, STAT, AACR, TMPL)
+
+**Key Documents**:
+- `003-PP-PROD-business-case.md` - Why this exists
+- `004-PP-PROD-prd.md` - Product requirements
+- `005-AT-ARCH-architecture.md` - System design (most detailed)
+- `006-TQ-SECU-threat-model.md` - Security analysis
+- `007-TQ-QAPL-test-plan.md` - Test strategy
+- `009-AA-AACR-week-1-scaffold.md` - Week 1 after-action report
 
 ---
 
@@ -34,21 +52,23 @@ This is a **hybrid memory system** for coding agents that integrates Jeff Emanue
 ## Directory Structure
 
 ```
-000-projects/Lumera-Emanuel/
-├── 000-docs/                    # All documentation (Doc-Filing v3.0 pattern)
-│   ├── planned-plugins/lumera-agent-memory/
-│   │   ├── 01-BUSINESS-CASE.md
-│   │   ├── 02-PRD.md
-│   │   ├── 03-ARCHITECTURE.md
-│   │   ├── 04-THREAT-MODEL.md
-│   │   ├── 05-TEST-PLAN.md
-│   │   └── 06-STATUS.md
-│   └── AA-REPT/                 # After-Action Reports
-│       └── 001-AA-REPT-week-1-scaffold.md
+Lumera-Emanuel/
+├── 000-docs/                    # All documentation (Doc-Filing v4.2)
+│   ├── 001-DR-STND-document-filing-system-v4-2.md
+│   ├── 002-AA-TMPL-after-action-report-template.md
+│   ├── 003-PP-PROD-business-case.md
+│   ├── 004-PP-PROD-prd.md
+│   ├── 005-AT-ARCH-architecture.md
+│   ├── 006-TQ-SECU-threat-model.md
+│   ├── 007-TQ-QAPL-test-plan.md
+│   ├── 008-PM-STAT-status.md
+│   └── 009-AA-AACR-week-1-scaffold.md
 ├── plugins/lumera-agent-memory/ # Plugin implementation
 │   ├── .claude-plugin/          # Plugin metadata
 │   │   ├── plugin.json
-│   │   └── .mcp.json
+│   │   └── .mcp.json           # Referenced by plugin.json
+│   ├── .mcp.json                # MCP server configuration
+│   ├── pyproject.toml           # Python project config
 │   ├── src/                     # Source code
 │   │   ├── security/            # Redaction + encryption
 │   │   ├── cascade/             # Cascade connector (mock)
@@ -63,11 +83,13 @@ This is a **hybrid memory system** for coding agents that integrates Jeff Emanue
 │   │   └── test_index.py
 │   └── scripts/                 # Dev automation
 │       ├── dev_setup.sh
-│       └── run_smoke.sh
+│       ├── run_smoke.sh
+│       └── requirements.txt
 ├── .github/workflows/           # CI/CD
 │   ├── pr.yml                   # PR validation
 │   └── main.yml                 # Main branch checks
 ├── .gitignore                   # Beads + secrets excluded
+├── AGENTS.md                    # Beads workflow instructions
 └── README.md
 ```
 
@@ -77,6 +99,8 @@ This is a **hybrid memory system** for coding agents that integrates Jeff Emanue
 
 ### Setup
 
+**Requirements**: Python 3.10+ (enforced by `dev_setup.sh`)
+
 ```bash
 cd plugins/lumera-agent-memory
 ./scripts/dev_setup.sh
@@ -84,6 +108,9 @@ source .venv/bin/activate
 
 # Set encryption key (REQUIRED for tests)
 export LUMERA_MEMORY_KEY=$(openssl rand -hex 32)
+
+# Optional: Persist to .env (DO NOT COMMIT)
+echo "LUMERA_MEMORY_KEY=$(openssl rand -hex 32)" > .env
 ```
 
 ### Run Tests
@@ -92,11 +119,46 @@ export LUMERA_MEMORY_KEY=$(openssl rand -hex 32)
 # All tests
 pytest tests/ -v
 
-# Security tests only (CRITICAL)
+# Security tests only (CRITICAL - must always pass)
 pytest tests/test_redaction.py tests/test_encryption.py -v
 
-# 90-second smoke test
+# Component tests
+pytest tests/test_cascade_mock.py tests/test_index.py -v
+
+# 90-second smoke test (CI gate)
 ./scripts/run_smoke.sh
+
+# Single test file
+pytest tests/test_redaction.py -v
+
+# Single test function
+pytest tests/test_redaction.py::test_redaction_fails_on_api_key -v
+
+# With coverage
+pytest tests/ -v --cov=src --cov-report=html
+```
+
+### Lint and Format
+
+```bash
+# Format code
+black src/ tests/
+isort src/ tests/
+
+# Lint (same as CI)
+black --check src/ tests/
+isort --check-only src/ tests/
+flake8 src/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+```
+
+### Run MCP Server Locally
+
+```bash
+# Direct invocation
+python -m src.mcp_server
+
+# Or via Claude Code plugin system (add to .claude/mcp.json)
+# Server config is in plugins/lumera-agent-memory/.mcp.json
 ```
 
 ### Code Changes
@@ -105,6 +167,62 @@ pytest tests/test_redaction.py tests/test_encryption.py -v
 2. **Follow existing patterns** (fail-closed security, content-addressed storage)
 3. **Write tests FIRST** (TDD for security-critical code)
 4. **Run smoke test** before committing
+5. **Format with black/isort** before pushing
+
+---
+
+## Architecture Overview
+
+### MCP Tools (4 Total)
+
+The plugin exposes 4 MCP tools via `src/mcp_server.py`:
+
+1. **`store_session_to_cascade`** - Redact → Encrypt → Store → Index
+   - Input: `session_id`, `tags`
+   - Output: `{pointer, content_hash, indexed: true}`
+
+2. **`query_cascade_memories`** - Search local SQLite index (NEVER queries Cascade)
+   - Input: `query`, `tags`, `limit`
+   - Output: `[{pointer, tags, created_at}]`
+
+3. **`retrieve_session_from_cascade`** - Fetch and decrypt by pointer
+   - Input: `pointer` (format: `cascade://<sha256-hash>`)
+   - Output: `{session_data: {...}}`
+
+4. **`estimate_storage_cost`** - Heuristic cost calculation
+   - Input: `bytes`, `redundancy`
+   - Output: `{cost, disclaimer}`
+
+### Key Design Principles
+
+1. **Local Index for Speed, Cascade for Durability**
+   - Query flow: User → SQLite Index → Return POINTERS
+   - NEVER query Cascade for search (only pointer-based retrieval)
+
+2. **Content-Addressed Storage**
+   - Pointer format: `cascade://<sha256-hash>`
+   - Same blob → same pointer (deduplication)
+   - Pointers are immutable
+
+3. **Fail-Closed Security**
+   - Redaction: Detect secrets → abort (no storage)
+   - Encryption: Missing key → error (no fallback)
+   - Path traversal: Invalid pointer → error (no guessing)
+
+### Component Layers
+
+```
+MCP Server (mcp_server.py)
+    ↓
+Security Layer (security/redact.py, security/encrypt.py)
+    ↓
+Storage Layer (cascade/mock_fs.py, index/index.py)
+    ↓
+CASS Adapter (adapters/cass_memory_system.py)
+```
+
+**Week 1**: Cascade is MOCKED (filesystem-backed at `.cache/cascade-mock/`)
+**Week 2+**: Swap to live Cascade HTTP API (same interface)
 
 ---
 
@@ -146,33 +264,6 @@ pytest tests/test_redaction.py -v
 ```bash
 pytest tests/test_encryption.py -v
 ```
-
----
-
-## Architecture Principles
-
-### 1. Local Index for Speed, Cascade for Durability
-
-**Query Flow**:
-```
-User → query_cascade_memories → SQLite Index → Return POINTERS
-```
-
-**NEVER query Cascade for search**. Index returns pointers, user calls `retrieve_session_from_cascade` to fetch.
-
-### 2. Content-Addressed Storage
-
-**Pointer Format**: `cascade://<sha256-hash>`
-
-**Deterministic**: Same blob → same pointer (deduplication)
-
-**Immutability**: Pointers never change (blobs are immutable)
-
-### 3. Fail-Closed Security
-
-**Redaction**: Detect secrets → abort (no storage)
-**Encryption**: Missing key → error (no fallback)
-**Path Traversal**: Invalid pointer → error (no guessing)
 
 ---
 
@@ -236,7 +327,7 @@ User → query_cascade_memories → SQLite Index → Return POINTERS
 2. Add tool definition to `list_tools()`
 3. Add handler function (follow existing pattern)
 4. Add tests to `tests/test_mcp_tools.py` (future)
-5. Update docs: `000-docs/planned-plugins/lumera-agent-memory/02-PRD.md`
+5. Update docs: `000-docs/004-PP-PROD-prd.md`
 
 ### Swap Mock → Live Cascade
 
@@ -361,19 +452,22 @@ docs(prd): clarify immutability constraints
 
 ---
 
-## Week 1 Deliverables (COMPLETE)
+## Project Status
 
-✅ Documentation (6 planning docs)
-✅ Security layer (redaction + encryption)
-✅ Storage layer (mock Cascade + SQLite index)
-✅ CASS adapter (with fixtures)
-✅ MCP server (4 tools)
-✅ Tests (35+ tests, <90s smoke test)
-✅ CI/CD (PR + main workflows)
-✅ README + CLAUDE.md
-✅ AA-REPT (week 1 scaffold report)
+**Week 1: COMPLETE** ✅
+- Documentation (9 files in `000-docs/`)
+- Security layer (fail-closed redaction + AES-256-GCM encryption)
+- Storage layer (mock Cascade + SQLite index)
+- CASS adapter (with test fixtures)
+- MCP server (4 tools)
+- Test suite (35+ tests, 90-second smoke test)
+- CI/CD (GitHub Actions PR + main workflows)
 
-**Next**: Week 2 - Live Cascade integration
+**Week 2: PLANNED**
+- Live Cascade HTTP API integration
+- Replace `MockCascadeConnector` with `LiveCascadeConnector`
+- Add retry logic, circuit breakers
+- Real cost tracking with Cascade pricing API
 
 ---
 

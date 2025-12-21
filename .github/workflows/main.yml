@@ -22,6 +22,16 @@ jobs:
           cd plugins/lumera-agent-memory
           pip install -r scripts/requirements.txt
 
+      - name: Validate standards compliance (Anthropic mode)
+        run: |
+          cd plugins/lumera-agent-memory
+          python scripts/validate_standards.py --plugin-root . --verbose
+
+      - name: Validate standards compliance (Enterprise mode)
+        run: |
+          cd plugins/lumera-agent-memory
+          python scripts/validate_standards.py --plugin-root . --enterprise --verbose
+
       - name: Run all tests with coverage
         run: |
           cd plugins/lumera-agent-memory

@@ -22,6 +22,12 @@ jobs:
           cd plugins/lumera-agent-memory
           pip install -r scripts/requirements.txt
 
+      - name: Validate standards compliance
+        run: |
+          cd plugins/lumera-agent-memory
+          python scripts/validate_standards.py --plugin-root . --verbose
+        continue-on-error: false
+
       - name: Run security tests
         run: |
           cd plugins/lumera-agent-memory

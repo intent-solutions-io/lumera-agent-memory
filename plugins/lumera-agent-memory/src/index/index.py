@@ -1,4 +1,4 @@
-"""Local SQLite index for fast memory search.
+"""Local SQLite index with FTS5 for fast memory search.
 
 CRITICAL: This index stores POINTERS only (never blob content).
 Queries return pointers for retrieval from Cascade.
@@ -12,7 +12,7 @@ from typing import List, Dict, Any, Optional
 
 
 class MemoryIndex:
-    """SQLite-based local memory index."""
+    """SQLite-based local memory index with FTS5 full-text search."""
 
     def __init__(self, db_path: Path = None):
         """Initialize index.
@@ -43,6 +43,9 @@ class MemoryIndex:
         tags: List[str] = None,
         source_session_id: str = None,
         source_tool: str = None,
+        title: str = None,
+        snippet: str = None,
+        metadata: Dict[str, Any] = None,
     ) -> int:
         """Add memory pointer to index.
 
@@ -52,6 +55,9 @@ class MemoryIndex:
             tags: List of tags for categorization
             source_session_id: Original session ID (from CASS)
             source_tool: Tool that generated this memory
+            title: Memory title (for search/display)
+            snippet: Short summary/preview (for search/display)
+            metadata: Additional metadata dict
 
         Returns:
             Memory ID (primary key)
@@ -60,64 +66,92 @@ class MemoryIndex:
             sqlite3.IntegrityError: If pointer already exists
         """
         tags_json = json.dumps(tags or [])
-        created_at = datetime.utcnow().isoformat()
+        metadata_json = json.dumps(metadata or {})
+        created_at = datetime.now().isoformat()
 
         cursor = self.conn.execute(
             """
             INSERT INTO memories (pointer, content_hash, tags_json, created_at,
-                                  source_session_id, source_tool)
-            VALUES (?, ?, ?, ?, ?, ?)
+                                  source_session_id, source_tool, title, snippet, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (pointer, content_hash, tags_json, created_at, source_session_id, source_tool),
+            (pointer, content_hash, tags_json, created_at, source_session_id, source_tool, title, snippet, metadata_json),
         )
         self.conn.commit()
         return cursor.lastrowid
 
     def query_memories(
         self,
+        query: str = None,
         tags: List[str] = None,
-        session_id: str = None,
+        time_range: Dict[str, str] = None,
         limit: int = 10,
         offset: int = 0,
     ) -> List[Dict[str, Any]]:
-        """Query index for memory pointers.
+        """Query index for memory pointers with FTS5 full-text search.
 
         Args:
+            query: Free-text search query (uses FTS5 with BM25 ranking)
             tags: Filter by tags (substring match on any tag)
-            session_id: Filter by source session ID
+            time_range: Filter by time range {"start": ISO8601, "end": ISO8601}
             limit: Max results to return
             offset: Number of results to skip
 
         Returns:
-            List of memory dicts with keys: pointer, tags, created_at, etc.
+            List of memory dicts with keys: pointer, tags, created_at, title, snippet, score, etc.
         """
-        query = "SELECT * FROM memories WHERE 1=1"
-        params = []
+        if query:
+            # FTS5 query with BM25 ranking
+            sql = """
+                SELECT m.*, bm25(memories_fts) AS score
+                FROM memories m
+                JOIN memories_fts ON memories_fts.rowid = m.id
+                WHERE memories_fts MATCH ?
+            """
+            params = [query]
+        else:
+            # No FTS query - just filter and sort by recency
+            sql = "SELECT *, 0 AS score FROM memories WHERE 1=1"
+            params = []
 
+        # Add tag filtering
         if tags:
-            # Substring match on tags_json (simple search)
             tag_conditions = []
             for tag in tags:
                 tag_conditions.append("tags_json LIKE ?")
                 params.append(f"%{tag}%")
-            query += " AND (" + " OR ".join(tag_conditions) + ")"
+            sql += " AND (" + " OR ".join(tag_conditions) + ")"
 
-        if session_id:
-            query += " AND source_session_id = ?"
-            params.append(session_id)
+        # Add time range filtering
+        if time_range:
+            if time_range.get("start"):
+                sql += " AND created_at >= ?"
+                params.append(time_range["start"])
+            if time_range.get("end"):
+                sql += " AND created_at <= ?"
+                params.append(time_range["end"])
 
-        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        # Order by score (if FTS) or recency
+        if query:
+            sql += " ORDER BY score ASC, created_at DESC"  # BM25 returns negative scores, lower is better
+        else:
+            sql += " ORDER BY created_at DESC"
+
+        sql += " LIMIT ? OFFSET ?"
         params.extend([limit, offset])
 
-        cursor = self.conn.execute(query, params)
+        cursor = self.conn.execute(sql, params)
         rows = cursor.fetchall()
 
-        # Convert to dicts and parse tags_json
+        # Convert to dicts and parse JSON fields
         results = []
         for row in rows:
             memory = dict(row)
             memory["tags"] = json.loads(memory["tags_json"])
-            del memory["tags_json"]  # Remove raw JSON field
+            memory["metadata"] = json.loads(memory.get("metadata_json", "{}"))
+            del memory["tags_json"]
+            if "metadata_json" in memory:
+                del memory["metadata_json"]
             results.append(memory)
 
         return results
@@ -139,7 +173,10 @@ class MemoryIndex:
 
         memory = dict(row)
         memory["tags"] = json.loads(memory["tags_json"])
+        memory["metadata"] = json.loads(memory.get("metadata_json", "{}"))
         del memory["tags_json"]
+        if "metadata_json" in memory:
+            del memory["metadata_json"]
         return memory
 
     def delete_memory(self, pointer: str) -> bool:

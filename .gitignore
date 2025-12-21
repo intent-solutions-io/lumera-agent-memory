@@ -1,7 +1,3 @@
-# Beads (dev-only, MUST NOT commit)
-.beads/
-*.jsonl
-
 # Python
 __pycache__/
 *.py[cod]
@@ -20,47 +16,37 @@ parts/
 sdist/
 var/
 wheels/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
+
+# Virtual environments
 .venv/
 venv/
 ENV/
 env/
 
-# IDEs
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-.DS_Store
 
-# Security - NEVER commit secrets
+# Project specific
+.cache/
+*.db
+*.db-journal
+
+# Beads (task tracking)
+.beads/
+
+# Environment
 .env
 .env.local
-.env.*.local
-*.key
-*.pem
-secrets/
-credentials/
-**/*credentials*.json
-**/*secrets*.json
-
-# Testing & Coverage
-.pytest_cache/
-.coverage
-htmlcov/
-*.cover
-*.log
-
-# Cascade mock storage (local only)
-.cache/
-*.sqlite
-*.db
-
-# OS
-Thumbs.db
-.Trash-*
