@@ -1,43 +1,41 @@
 # Lumera Agent Memory
 
-> **⚠️ ACTIVE DEVELOPMENT** - This project is under active development. Features and APIs are subject to change.
+> This project is under active development. Features and APIs may change.
 >
-> **🔒 SECURITY NOTICE**: This is a developmental project. While security features are implemented (AES-256-GCM encryption, fail-closed redaction), this software has NOT been audited for production use. Use at your own risk.
+> This is a developmental project. Security features are implemented but the software has not been audited for production use. Use at your own risk.
 
-A hybrid local-search + Cascade-storage memory system for coding agents. **Privacy-first design**: stores ONLY sanitized artifacts by default (no raw sessions).
+A memory storage system for coding agents. Stores sanitized artifacts by default.
 
-## CEO Feedback-Driven Design
+## Design Approach
 
-> **"No one should be able to see what happens in my sessions. Too much liability."**
->
-> **"Even with encryption, it's easy to mess up."**
+The system stores only sanitized data by default (no raw session transcripts). This approach reduces liability and simplifies security.
 
-**Our Response**: We do NOT build "export raw sessions" as the default product. We build a **safe-by-default system** that stores ONLY sanitized, derived artifacts unless you explicitly opt into storing raw content.
+**Default Storage**:
+- Memory Card: title, summary, decisions, todos, entities, keywords
+- Redaction report: what was removed
+- Minimal metadata: timestamps, tags
 
-**Default Behavior**:
-- ✅ Stores Memory Card (title, summary, decisions, todos, entities, keywords)
-- ✅ Stores redaction report (what was removed)
-- ✅ Stores minimal metadata (timestamps, tags)
-- ❌ Does NOT store raw session transcript
+Raw session transcripts are not stored by default.
 
-**Opt-In for Raw Export** (requires BOTH):
+**Raw Export Option**:
+If you need to store raw sessions, you must provide both:
 1. `metadata.allow_raw_export = true`
 2. `metadata.raw_export_ack = "I understand the risk"`
 
-Without BOTH conditions, raw transcript is NOT uploaded (even encrypted).
+Without both flags, only sanitized artifacts are stored.
 
-## Status
+## Current Status
 
-- ✅ **Privacy-First**: Artifact-only storage by default (CEO feedback incorporated)
-- ✅ **Opt-In Gate**: Raw export requires explicit acknowledgment
-- ✅ **Dry-Run Preview**: See exactly what would be stored before committing
-- ✅ **Security Layer**: Client-side AES-256-GCM encryption, typed redaction with fail-closed on critical secrets
-- ✅ **Storage Layer**: Mock Cascade (filesystem-backed), content-addressed pointers
-- ✅ **Search Layer**: SQLite FTS5 with BM25 ranking (local index, never queries Cascade)
-- ✅ **Enrichment**: Deterministic NLP-based Memory Card generation (offline)
-- ✅ **MCP Server**: 4 tools (store, query, retrieve, estimate_cost)
-- 🚧 **Live Cascade**: Stubbed (returns actionable error)
-- 🚧 **Production Tests**: In progress
+- Artifact-only storage by default
+- Opt-in gate for raw export
+- Dry-run preview mode
+- Client-side AES-256-GCM encryption
+- Mock Cascade storage (filesystem-backed)
+- SQLite FTS5 search (local only)
+- Deterministic Memory Card generation
+- 4 MCP tools
+- Live Cascade: not yet implemented
+- Production testing: in progress
 
 ## Quick Start
 
@@ -57,44 +55,41 @@ pytest tests/ -v
 python -m src.mcp_server
 ```
 
-## Architecture
+## How It Works
 
 ```
-CASS Session → Redact (typed PII) → Encrypt (AES-256-GCM) →
-Store in Cascade → Index (SQLite FTS5) → Search (local only)
+CASS Session → Redact → Encrypt → Store in Cascade → Index in SQLite → Local Search
 ```
 
-**Key Design Principles**:
-- Search NEVER queries Cascade (local SQLite index only)
-- Content-addressed storage (`cascade://<sha256-hash>`)
-- Fail-closed security (critical secrets abort storage)
-- Client-side encryption (user-controlled keys)
+**Design notes**:
+- Search queries local SQLite index only (never queries Cascade)
+- Content-addressed storage using SHA-256 hashes
+- Critical secrets abort storage
+- Encryption uses user-controlled keys
 
-## Security
+## Security Notes
 
-### ⚠️ Development Status
+This is early development software. Not ready for production use.
 
-**NOT PRODUCTION READY** - This is an early-stage development project:
+- Security features are implemented
+- No security audit has been performed
+- No penetration testing conducted
+- No formal cryptographic review
+- Not production-hardened
 
-- ✅ Security features implemented: AES-256-GCM encryption, typed redaction, fail-closed on critical secrets
-- ❌ NO security audit performed
-- ❌ NO penetration testing conducted
-- ❌ NO formal cryptographic review
-- ❌ NO production hardening
+Use for development and testing only.
 
-**Use for development/testing purposes only.** Do not store sensitive production data.
+### Redaction Approach
 
-### Security Model
+Two levels:
+1. Critical secrets (SSH keys, PGP keys, auth headers): Storage aborted
+2. Non-critical PII (emails, API keys, JWTs): Replaced with typed placeholders
 
-**Two-Tier Redaction**:
-1. **Critical Secrets** (fail-closed): SSH keys, PGP keys, Authorization headers → Abort storage
-2. **Non-Critical PII** (redact-and-continue): Emails, API keys, JWTs, credit cards → Typed placeholders
+Example: `john.doe@example.com` becomes `<REDACTED:EMAIL>`
 
-Example: `john.doe@example.com` → `<REDACTED:EMAIL>`
+### Encryption
 
-**Encryption**: Client-side AES-256-GCM with user-controlled keys (LUMERA_MEMORY_KEY env var)
-
-**Key Management**: Keys are NOT managed by this system. Users must securely store and rotate their own keys.
+Client-side AES-256-GCM with user-controlled keys via LUMERA_MEMORY_KEY environment variable. Keys are not managed by this system.
 
 ## Example Usage
 
@@ -111,9 +106,9 @@ Example: `john.doe@example.com` → `<REDACTED:EMAIL>`
 }
 ```
 
-**Result**: Stores ONLY Memory Card + redaction report (NO raw transcript)
+Result: Stores only Memory Card and redaction report.
 
-### 2. Dry-Run Preview (See What Would Be Stored)
+### 2. Dry-Run Preview
 
 ```json
 {
@@ -129,9 +124,9 @@ Example: `john.doe@example.com` → `<REDACTED:EMAIL>`
 }
 ```
 
-**Result**: Preview object showing fields, byte size, what would be uploaded. NO upload occurs.
+Result: Preview object showing what would be uploaded. No actual upload occurs.
 
-### 3. Opt-In Raw Export (Explicit Acknowledgment Required)
+### 3. Opt-In Raw Export
 
 ```json
 {
@@ -148,9 +143,9 @@ Example: `john.doe@example.com` → `<REDACTED:EMAIL>`
 }
 ```
 
-**Result**: Stores Memory Card + redacted raw session transcript
+Result: Stores Memory Card plus redacted session transcript.
 
-### 4. Query Memories (Local Search Only)
+### 4. Query Memories
 
 ```json
 {
@@ -163,7 +158,7 @@ Example: `john.doe@example.com` → `<REDACTED:EMAIL>`
 }
 ```
 
-**Result**: Hits with `cascade_uri`, `artifact_type`, title, snippet, BM25 score
+Result: Hits with cascade_uri, artifact_type, title, snippet, and BM25 relevance score.
 
 ### 5. Retrieve Artifact
 
@@ -177,7 +172,7 @@ Example: `john.doe@example.com` → `<REDACTED:EMAIL>`
 }
 ```
 
-**Result**: Decrypted artifact (type: `artifact_only` or `raw_plus_artifact`)
+Result: Decrypted artifact (artifact_only or raw_plus_artifact type).
 
 ## MCP Tools
 
